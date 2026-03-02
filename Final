@@ -1,0 +1,140 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+)
+
+type Producto struct {
+	ID       int     `json:"id"`
+	Nombre   string  `json:"nombre"`
+	Material string  `json:"material"`
+	Precio   float64 `json:"precio"`
+}
+
+type Pedido struct {
+	ID     int    `json:"id"`
+	Nombre string `json:"nombre"`
+	Estado string `json:"estado"`
+}
+
+var (
+	catalogo  = []Producto{{ID: 1, Nombre: "Busto Batman", Material: "RESINA", Precio: 25.0}}
+	pedidos   = []Pedido{}
+	mu        sync.Mutex
+	nextID    = 2
+	nextPedID = 1
+)
+
+func enableCORS(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
+
+func handleProductos(w http.ResponseWriter, r *http.Request) {
+	enableCORS(&w)
+	if r.Method == "OPTIONS" {
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		json.NewEncoder(w).Encode(catalogo)
+	case "POST":
+		var p Producto
+		json.NewDecoder(r.Body).Decode(&p)
+		mu.Lock()
+		p.ID = nextID
+		nextID++
+		catalogo = append(catalogo, p)
+		mu.Unlock()
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(p)
+	case "PUT":
+		var data struct {
+			ID     int     `json:"id"`
+			Precio float64 `json:"precio"`
+		}
+		json.NewDecoder(r.Body).Decode(&data)
+		mu.Lock()
+		for i := range catalogo {
+			if catalogo[i].ID == data.ID {
+				catalogo[i].Precio = data.Precio
+				break
+			}
+		}
+		mu.Unlock()
+	case "DELETE":
+		idStr := r.URL.Query().Get("id")
+		var id int
+		fmt.Sscanf(idStr, "%d", &id)
+		mu.Lock()
+		for i, p := range catalogo {
+			if p.ID == id {
+				catalogo = append(catalogo[:i], catalogo[i+1:]...)
+				break
+			}
+		}
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func handlePedidos(w http.ResponseWriter, r *http.Request) {
+	enableCORS(&w)
+	json.NewEncoder(w).Encode(pedidos)
+}
+
+func handleImprimir(w http.ResponseWriter, r *http.Request) {
+	enableCORS(&w)
+	if r.Method == "POST" {
+		idProdStr := r.URL.Query().Get("id")
+		var idProd int
+		fmt.Sscanf(idProdStr, "%d", &idProd)
+
+		mu.Lock()
+		nombre := "Pieza"
+		for _, p := range catalogo {
+			if p.ID == idProd {
+				nombre = p.Nombre
+				break
+			}
+		}
+		pedido := Pedido{ID: nextPedID, Nombre: nombre, Estado: "Pendiente"}
+		pedidos = append(pedidos, pedido)
+		idAct := nextPedID
+		nextPedID++
+		mu.Unlock()
+
+		go func(id int) {
+			mu.Lock()
+			for i := range pedidos {
+				if pedidos[i].ID == id {
+					pedidos[i].Estado = "Imprimiendo"
+				}
+			}
+			mu.Unlock()
+			time.Sleep(10 * time.Second)
+			mu.Lock()
+			for i := range pedidos {
+				if pedidos[i].ID == id {
+					pedidos[i].Estado = "Finalizado"
+				}
+			}
+			mu.Unlock()
+		}(idAct)
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func main() {
+	http.HandleFunc("/productos", handleProductos)
+	http.HandleFunc("/pedidos", handlePedidos)
+	http.HandleFunc("/imprimir", handleImprimir)
+	fmt.Println("🚀 Servidor Folan 3D activo en http://localhost:8080")
+	http.ListenAndServe(":8080", nil)
+}
