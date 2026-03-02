@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Folan 3D - Panel Pro</title>
+    <style>
+        /* FONDO: OPTIMIZADO PARA VER MEJOR LA FOTO */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            
+            /* Sombreado más ligero (0.4) para que la impresora sea la protagonista */
+            background-image: 
+                linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.5)), 
+                url('fondo.jpg');
+            
+            background-size: cover; 
+            background-position: center;
+            background-attachment: fixed;
+            background-color: #1a1a1a;
+        }
+
+        .container { max-width: 1000px; margin: auto; }
+
+        header h1 {
+            text-align: center;
+            color: white;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.6);
+            font-size: 2.8em;
+            margin-bottom: 30px;
+            letter-spacing: 1px;
+        }
+
+        /* PANELES: EFECTO CRISTAL (GLASSMORPHISM) */
+        .card {
+            /* Transparencia (0.75) y desenfoque de fondo */
+            background: rgba(255, 255, 255, 0.75); 
+            backdrop-filter: blur(12px); /* Esto hace que la foto se vea borrosa detrás */
+            -webkit-backdrop-filter: blur(12px);
+            
+            padding: 30px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            color: #1d1d1f;
+        }
+
+        h3 { 
+            margin-top: 0; 
+            color: #2c3e50; 
+            border-bottom: 3px solid #3498db;
+            display: inline-block;
+            padding-bottom: 5px;
+            font-size: 1.4em;
+        }
+
+        /* FORMULARIO ESTILIZADO */
+        input {
+            padding: 14px;
+            margin: 10px 5px;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 12px;
+            width: 260px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 1em;
+            transition: 0.3s;
+        }
+        input:focus { 
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.2);
+        }
+
+        /* BOTONES CON RELIEVE */
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .btn-save { background: #27ae60; color: white; }
+        .btn-blue { background: #3498db; color: white; }
+        .btn-red { background: #e74c3c; color: white; }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+
+        /* TABLAS CON FILAS SEMI-TRANSPARENTES */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { 
+            background: rgba(0, 0, 0, 0.05);
+            color: #444;
+            padding: 15px; 
+            text-align: left; 
+            font-size: 0.9em;
+            border-radius: 8px;
+        }
+        td { padding: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); color: #333; }
+        tr:hover { background: rgba(255, 255, 255, 0.4); }
+
+        /* ESTATUS CON COLORES VIVOS */
+        .status { 
+            padding: 6px 14px; 
+            border-radius: 50px; 
+            font-size: 0.85em; 
+            font-weight: bold;
+            display: inline-block;
+        }
+        .Imprimiendo { background: #f9ca24; color: #7f5e00; box-shadow: 0 2px 10px rgba(249, 202, 36, 0.4); }
+        .Finalizado { background: #2ecc71; color: #fff; box-shadow: 0 2px 10px rgba(46, 204, 113, 0.4); }
+        .Pendiente { background: #95a5a6; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🚀 Folan 3D Management</h1>
+    </header>
+
+    <div class="card">
+        <h3>📦 Registro de Inventario</h3>
+        <p style="color: #666; font-size: 0.9em;">Ingresa los detalles de la nueva pieza para el catálogo.</p>
+        <input type="text" id="nombre" placeholder="Nombre de la pieza">
+        <input type="number" id="precio" placeholder="Precio ($)">
+        <button class="btn btn-save" onclick="crearProducto()">Guardar Pieza</button>
+    </div>
+
+    <div class="card">
+        <h3>📋 Catálogo y Operaciones</h3>
+        <table id="tablaProductos">
+            <thead>
+                <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Acciones</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>🖨️ Monitor de Impresión</h3>
+        <table id="tablaPedidos">
+            <thead>
+                <tr><th>#</th><th>Pieza</th><th>Estado</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // [El código JavaScript se mantiene igual que la versión anterior]
+    const API = 'http://localhost:8080';
+
+    async function cargarProductos() {
+        const res = await fetch(`${API}/productos`);
+        const data = await res.json();
+        const tbody = document.querySelector('#tablaProductos tbody');
+        tbody.innerHTML = '';
+        data.forEach(p => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.id}</td>
+                    <td><b>${p.nombre}</b></td>
+                    <td>$${p.precio.toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-blue" style="padding: 8px 12px;" onclick="imprimir(${p.id})">🖨️</button>
+                        <button class="btn btn-red" style="padding: 8px 12px;" onclick="borrar(${p.id})">🗑️</button>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    async function crearProducto() {
+        const inputNombre = document.getElementById('nombre');
+        const inputPrecio = document.getElementById('precio');
+        if (!inputNombre.value || !inputPrecio.value) return;
+
+        await fetch(`${API}/productos`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ nombre: inputNombre.value, precio: parseFloat(inputPrecio.value) })
+        });
+
+        inputNombre.value = '';
+        inputPrecio.value = '';
+        inputNombre.focus();
+        cargarProductos();
+    }
+
+    async function borrar(id) {
+        if(confirm("¿Eliminar del catálogo?")) {
+            await fetch(`${API}/productos?id=${id}`, { method: 'DELETE' });
+            cargarProductos();
+        }
+    }
+
+    async function imprimir(id) {
+        await fetch(`${API}/imprimir?id=${id}`, { method: 'POST' });
+        cargarPedidos();
+    }
+
+    async function cargarPedidos() {
+        const res = await fetch(`${API}/pedidos`);
+        const data = await res.json();
+        const tbody = document.querySelector('#tablaPedidos tbody');
+        tbody.innerHTML = '';
+        data.forEach(ped => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${ped.id}</td>
+                    <td>${ped.nombre}</td>
+                    <td><span class="status ${ped.estado}">${ped.estado}</span></td>
+                </tr>`;
+        });
+    }
+
+    cargarProductos();
+    setInterval(cargarPedidos, 3000);
+</script>
+
+</body>
+</html>
